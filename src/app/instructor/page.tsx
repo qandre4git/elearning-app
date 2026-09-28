@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/actions";
 import { CreateCourseForm } from "@/components/CreateCourseForm";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, formatLevel } from "@/lib/utils";
 import {
   Users,
   BookOpen,
@@ -168,7 +168,7 @@ export default async function InstructorPage() {
                             {course.title}
                           </span>
                           <span className="text-[11px] text-slate-400">
-                            Nível {course.level}
+                            Nível {formatLevel(course.level)}
                           </span>
                         </div>
                       </div>

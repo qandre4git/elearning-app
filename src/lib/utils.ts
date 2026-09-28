@@ -24,3 +24,12 @@ export function formatDuration(minutes: number): string {
   }
   return `${hours}h ${remainingMinutes}m`;
 }
+
+export function formatLevel(level: string): string {
+  const levels: Record<string, string> = {
+    BEGINNER: "Iniciante",
+    INTERMEDIATE: "Intermediário",
+    ADVANCED: "Avançado",
+  };
+  return levels[level] || level;
+}

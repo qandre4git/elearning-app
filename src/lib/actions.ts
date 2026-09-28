@@ -235,7 +235,7 @@ export async function createNewCourse(formData: FormData) {
                 {
                   title: "1. Boas-vindas e Visão Geral",
                   description: "Apresentação dos tópicos e objetivos de aprendizado.",
-                  videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
+                  videoUrl: "https://www.youtube.com/embed/F1S-13T5q5Y",
                   durationMinutes: 10,
                   order: 1,
                 },

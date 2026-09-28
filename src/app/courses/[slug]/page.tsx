@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/actions";
-import { formatPrice, formatDuration } from "@/lib/utils";
+import { formatPrice, formatDuration, formatLevel } from "@/lib/utils";
 import { EnrollButton } from "@/components/EnrollButton";
 import {
   BookOpen,
@@ -82,7 +82,7 @@ export default async function CourseDetailPage({ params }: CourseDetailPageProps
                   </span>
                 )}
                 <span className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 text-xs font-semibold border border-slate-700">
-                  Nível {course.level}
+                  Nível {formatLevel(course.level)}
                 </span>
               </div>
 
