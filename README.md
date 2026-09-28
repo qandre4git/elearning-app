@@ -6,6 +6,123 @@ Todos os cursos, módulos, avaliações didáticas e videoaulas são **100% em P
 
 ---
 
+## 🧒 Guia Passo a Passo: Clonando e Rodando na sua Máquina (Explicado para 5 anos!)
+
+Se você nunca mexeu com programação ou com o GitHub antes, não se preocupe! Siga este passo a passo ilustrado:
+
+### 🧩 Entendendo o que estamos fazendo:
+- ☁️ **GitHub**: É como um **baú de brinquedos na nuvem** onde guardamos o código do projeto.
+- 🚚 **Git**: É o **carrinho de entrega** no seu computador. Ele vai até o baú da nuvem, pega uma cópia idêntica do projeto e entrega na sua máquina.
+- 👯 **Clonar**: Significa **fazer uma cópia exata** do projeto para a sua pasta.
+- 💻 **Terminal / Prompt**: É a **janelinha preta** onde você digita comandos para o computador obedecer.
+
+---
+
+### Passo 1: Instalar o Git no seu computador
+
+Escolha o sistema operacional que você usa:
+
+#### 🪟 Se você usa Windows:
+1. Acesse o site oficial: [git-scm.com/download/win](https://git-scm.com/download/win).
+2. Baixe o instalador e vá clicando em **"Next" / "Avançar"** até terminar.
+3. No menu Iniciar, procure e abra o aplicativo chamado **Git Bash** (ou use o **PowerShell**).
+
+#### 🍎 Se você usa Mac (Apple):
+1. Pressione as teclas `Command (⌘) + Barra de Espaço`, digite **Terminal** e aperte `Enter`.
+2. Na janela preta que abrir, digite:
+   ```bash
+   git --version
+   ```
+3. Se você ainda não tiver o Git instalado, o próprio Mac abrirá uma janelinha perguntando se deseja instalar as ferramentas de desenvolvedor. Clique em **Instalar** e aguarde.
+
+#### 🐧 Se você usa Linux (Ubuntu, Debian, Mint):
+1. Abra o seu terminal pressionando `Ctrl + Alt + T`.
+2. Digite o comando abaixo e aperte `Enter`:
+   ```bash
+   sudo apt update && sudo apt install -y git
+   ```
+
+---
+
+### Passo 2: Dizer ao Git quem você é (Identidade)
+
+Abra a janela do terminal e digite os dois comandos abaixo (troque pelo seu nome e seu e-mail do GitHub):
+
+```bash
+git config --global user.name "Seu Nome"
+git config --global user.email "seu-email@exemplo.com"
+```
+> *Isso serve apenas para o Git saber quem é o autor das alterações.*
+
+---
+
+### Passo 3: Fazer o Clone (Baixar o projeto do GitHub)
+
+1. No terminal, vá até a pasta onde você gosta de guardar seus projetos (por exemplo, na Área de Trabalho ou Documentos):
+   ```bash
+   cd ~/Documentos
+   # (ou no Windows: cd Desktop)
+   ```
+
+2. Agora execute o comando de **clone**:
+   ```bash
+   git clone https://github.com/qandre4git/elearning-app.git
+   ```
+
+3. **Como este repositório é privado**, ele pode pedir para você se autenticar:
+   - **Forma mais fácil (GitHub CLI)**:
+     Instale o GitHub CLI e digite `gh auth login` para autorizar direto no navegador.
+   - **Via Senha/Token**:
+     Se o terminal pedir sua senha, no GitHub você deve usar um **Personal Access Token** no lugar da senha:
+     *(Acesse seu GitHub ➔ Settings ➔ Developer Settings ➔ Personal access tokens ➔ Tokens (classic) ➔ Generate new token com permissão `repo`)*.
+
+---
+
+### Passo 4: Entrar na pasta do projeto
+
+Agora que o projeto foi baixado, digite o comando para entrar dentro da pasta dele:
+
+```bash
+cd elearning-app
+```
+> *(A sigla `cd` vem de "Change Directory", que significa "entrar nesta pasta")*.
+
+---
+
+### Passo 5: Instalar as peças do projeto (Dependências)
+
+Certifique-se de ter o **[Node.js](https://nodejs.org)** instalado no computador. Em seguida, digite:
+
+```bash
+npm install
+```
+> *(O computador vai baixar automaticamente todas as bibliotecas necessárias para a aplicação funcionar)*.
+
+---
+
+### Passo 6: Ligar o Banco de Dados e Rodar o Site!
+
+Agora que tudo está pronto, só precisamos ligar os motores:
+
+1. **Ligar o PostgreSQL (banco de dados)**:
+   ```bash
+   docker compose up -d
+   ```
+2. **Criar as tabelas e colocar os cursos em português**:
+   ```bash
+   npm run db:setup
+   npm run db:seed
+   ```
+3. **Ligar a aplicação**:
+   ```bash
+   npm run dev
+   ```
+
+🎉 **Pronto!** Abra o seu navegador de internet e acesse:
+👉 **[http://localhost:3000](http://localhost:3000)**
+
+---
+
 ## 🛠️ Stack Tecnológica
 
 | Camada | Tecnologia |
@@ -46,36 +163,6 @@ elearning-app/
 ├── docker-compose.yml         # Atalho de orquestração na raiz
 └── package.json
 ```
-
----
-
-## 🚀 Como Executar o Projeto Localmente
-
-### 1. Clonar e entrar na pasta do projeto
-```bash
-git clone https://github.com/qandre4git/elearning-app.git
-cd elearning-app
-```
-
-### 2. Iniciar o Banco de Dados PostgreSQL
-Suba o container do PostgreSQL com o comando:
-```bash
-docker compose up -d
-# ou: npm run db:up
-```
-
-### 3. Criar as Tabelas e Popular Dados Iniciais
-Execute a criação das tabelas SQL e o seed dos cursos em português:
-```bash
-npm run db:setup
-npm run db:seed
-```
-
-### 4. Iniciar a Aplicação Next.js
-```bash
-npm run dev
-```
-Acesse a aplicação no navegador em: **[http://localhost:3000](http://localhost:3000)**
 
 ---
 
