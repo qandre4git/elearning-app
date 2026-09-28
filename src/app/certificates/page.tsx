@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/actions";
 import { CertificateCard } from "@/components/CertificateCard";
 import { SampleCertificateButton } from "@/components/SampleCertificateButton";
-import { Award, BookOpen, ArrowRight, ShieldCheck } from "lucide-react";
+import { Award, BookOpen } from "lucide-react";
 
 export default async function CertificatesPage() {
   const user = await getCurrentUser();
@@ -16,28 +16,69 @@ export default async function CertificatesPage() {
     );
   }
 
-  const [certificates, firstCourse] = await Promise.all([
-    prisma.certificate.findMany({
-      where: { userId: user.id },
-      include: {
-        user: { select: { name: true } },
-        course: {
-          include: {
-            instructor: { select: { name: true } },
-            modules: {
-              include: {
-                lessons: { select: { durationMinutes: true } },
-              },
-            },
-          },
-        },
+  // Busca certificados do usuário
+  const certRes = await pool.query(
+    `SELECT 
+       cert.id, cert.code, cert.issued_at as "issuedAt",
+       u.name as user_name,
+       c.id as course_id, c.title as course_title,
+       inst.name as instructor_name
+     FROM certificates cert
+     JOIN users u ON cert.user_id = u.id
+     JOIN courses c ON cert.course_id = c.id
+     JOIN users inst ON c.instructor_id = inst.id
+     WHERE cert.user_id = $1
+     ORDER BY cert.issued_at DESC`,
+    [user.id]
+  );
+
+  // Busca aulas dos cursos desses certificados
+  const courseIds = certRes.rows.map((r) => r.course_id);
+  let lessonsByCourse: Record<string, { durationMinutes: number }[]> = {};
+
+  if (courseIds.length > 0) {
+    const lessonsRes = await pool.query(
+      `SELECT m.course_id, l.duration_minutes
+       FROM lessons l
+       JOIN modules m ON l.module_id = m.id
+       WHERE m.course_id = ANY($1)`,
+      [courseIds]
+    );
+
+    lessonsRes.rows.forEach((row) => {
+      if (!lessonsByCourse[row.course_id]) {
+        lessonsByCourse[row.course_id] = [];
+      }
+      lessonsByCourse[row.course_id].push({
+        durationMinutes: row.duration_minutes,
+      });
+    });
+  }
+
+  const certificates = certRes.rows.map((r) => ({
+    id: r.id,
+    code: r.code,
+    issuedAt: r.issuedAt,
+    user: {
+      name: r.user_name,
+    },
+    course: {
+      title: r.course_title,
+      instructor: {
+        name: r.instructor_name,
       },
-      orderBy: { issuedAt: "desc" },
-    }),
-    prisma.course.findFirst({
-      where: { published: true },
-    }),
-  ]);
+      modules: [
+        {
+          lessons: lessonsByCourse[r.course_id] || [],
+        },
+      ],
+    },
+  }));
+
+  const firstCourseRes = await pool.query(
+    "SELECT id FROM courses WHERE published = true LIMIT 1"
+  );
+  const firstCourse = firstCourseRes.rows[0];
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">

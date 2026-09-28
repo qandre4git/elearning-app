@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/actions";
 import { formatPrice, formatDuration, formatLevel } from "@/lib/utils";
 import { EnrollButton } from "@/components/EnrollButton";
@@ -9,11 +9,8 @@ import {
   Clock,
   Award,
   ChevronLeft,
-  CheckCircle2,
-  FileCheck,
   ShieldCheck,
   PlayCircle,
-  HelpCircle,
 } from "lucide-react";
 
 interface CourseDetailPageProps {
@@ -26,36 +23,83 @@ export default async function CourseDetailPage({ params }: CourseDetailPageProps
   const { slug } = await params;
   const user = await getCurrentUser();
 
-  const course = await prisma.course.findUnique({
-    where: { slug },
-    include: {
-      category: true,
-      instructor: true,
-      modules: {
-        orderBy: { order: "asc" },
-        include: {
-          lessons: {
-            orderBy: { order: "asc" },
-          },
-          quizzes: true,
-        },
-      },
-      enrollments: user ? { where: { userId: user.id } } : false,
-    },
-  });
+  const courseRes = await pool.query(
+    `SELECT 
+       c.id, c.title, c.slug, c.description, c.short_description as "shortDescription",
+       c.thumbnail, CAST(c.price AS FLOAT) as price, c.level, c.created_at,
+       cat.name as category_name, cat.slug as category_slug,
+       u.name as instructor_name, u.avatar_url as instructor_avatar, u.bio as instructor_bio
+     FROM courses c
+     LEFT JOIN categories cat ON c.category_id = cat.id
+     JOIN users u ON c.instructor_id = u.id
+     WHERE c.slug = $1 LIMIT 1`,
+    [slug]
+  );
 
-  if (!course) {
+  if (courseRes.rows.length === 0) {
     notFound();
   }
 
-  const isEnrolled = course.enrollments && course.enrollments.length > 0;
+  const c = courseRes.rows[0];
 
-  const totalLessons = course.modules.reduce(
-    (acc, m) => acc + m.lessons.length,
-    0
+  // Busca módulos
+  const modulesRes = await pool.query(
+    `SELECT id, title, description, "order"
+     FROM modules 
+     WHERE course_id = $1
+     ORDER BY "order" ASC`,
+    [c.id]
   );
 
-  const totalDuration = course.modules.reduce(
+  // Busca aulas
+  const lessonsRes = await pool.query(
+    `SELECT l.id, l.title, l.description, l.video_url, l.duration_minutes, l."order", l.module_id
+     FROM lessons l
+     JOIN modules m ON l.module_id = m.id
+     WHERE m.course_id = $1
+     ORDER BY l."order" ASC`,
+    [c.id]
+  );
+
+  // Busca quizzes
+  const quizzesRes = await pool.query(
+    `SELECT q.id, q.title, q.description, q.passing_score, q.module_id
+     FROM quizzes q
+     JOIN modules m ON q.module_id = m.id
+     WHERE m.course_id = $1`,
+    [c.id]
+  );
+
+  // Agrupa aulas e quizzes por módulo
+  const modules = modulesRes.rows.map((m) => ({
+    id: m.id,
+    title: m.title,
+    description: m.description,
+    order: m.order,
+    lessons: lessonsRes.rows
+      .filter((l) => l.module_id === m.id)
+      .map((l) => ({
+        id: l.id,
+        title: l.title,
+        description: l.description,
+        durationMinutes: l.duration_minutes,
+        order: l.order,
+      })),
+    quizzes: quizzesRes.rows.filter((q) => q.module_id === m.id),
+  }));
+
+  // Checa matrícula do usuário
+  let isEnrolled = false;
+  if (user) {
+    const enrRes = await pool.query(
+      "SELECT id FROM enrollments WHERE user_id = $1 AND course_id = $2 LIMIT 1",
+      [user.id, c.id]
+    );
+    isEnrolled = enrRes.rows.length > 0;
+  }
+
+  const totalLessons = modules.reduce((acc, m) => acc + m.lessons.length, 0);
+  const totalDuration = modules.reduce(
     (acc, m) => acc + m.lessons.reduce((lAcc, l) => lAcc + l.durationMinutes, 0),
     0
   );
@@ -76,41 +120,41 @@ export default async function CourseDetailPage({ params }: CourseDetailPageProps
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             <div className="lg:col-span-8 space-y-4">
               <div className="flex flex-wrap items-center gap-2">
-                {course.category && (
+                {c.category_name && (
                   <span className="px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 text-xs font-semibold border border-indigo-500/30">
-                    {course.category.name}
+                    {c.category_name}
                   </span>
                 )}
                 <span className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 text-xs font-semibold border border-slate-700">
-                  Nível {formatLevel(course.level)}
+                  Nível {formatLevel(c.level)}
                 </span>
               </div>
 
               <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight">
-                {course.title}
+                {c.title}
               </h1>
 
               <p className="text-slate-300 text-base sm:text-lg leading-relaxed max-w-2xl">
-                {course.shortDescription || course.description}
+                {c.shortDescription || c.description}
               </p>
 
               {/* Instructor info */}
               <div className="flex items-center gap-3 pt-2">
-                {course.instructor.avatarUrl ? (
+                {c.instructor_avatar ? (
                   <img
-                    src={course.instructor.avatarUrl}
-                    alt={course.instructor.name}
+                    src={c.instructor_avatar}
+                    alt={c.instructor_name}
                     className="w-10 h-10 rounded-full object-cover border border-slate-700"
                   />
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">
-                    {course.instructor.name.charAt(0)}
+                    {c.instructor_name.charAt(0)}
                   </div>
                 )}
                 <div>
                   <span className="text-xs text-slate-400 block">Criado por</span>
                   <span className="text-sm font-semibold text-white">
-                    {course.instructor.name}
+                    {c.instructor_name}
                   </span>
                 </div>
               </div>
@@ -121,10 +165,10 @@ export default async function CourseDetailPage({ params }: CourseDetailPageProps
               <div className="relative aspect-video rounded-2xl overflow-hidden mb-6 bg-slate-100 dark:bg-slate-800">
                 <img
                   src={
-                    course.thumbnail ||
+                    c.thumbnail ||
                     "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80"
                   }
-                  alt={course.title}
+                  alt={c.title}
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -133,15 +177,15 @@ export default async function CourseDetailPage({ params }: CourseDetailPageProps
                 <div className="flex items-baseline justify-between">
                   <span className="text-xs text-slate-400 font-medium">Preço</span>
                   <span className="text-3xl font-extrabold text-slate-900 dark:text-white">
-                    {formatPrice(course.price)}
+                    {formatPrice(c.price)}
                   </span>
                 </div>
 
                 <EnrollButton
-                  courseId={course.id}
-                  courseSlug={course.slug}
-                  isEnrolled={Boolean(isEnrolled)}
-                  price={course.price}
+                  courseId={c.id}
+                  courseSlug={c.slug}
+                  isEnrolled={isEnrolled}
+                  price={c.price}
                 />
 
                 <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2.5 text-xs text-slate-500 dark:text-slate-400">
@@ -177,7 +221,7 @@ export default async function CourseDetailPage({ params }: CourseDetailPageProps
               Sobre o Curso
             </h2>
             <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed whitespace-pre-line">
-              {course.description}
+              {c.description}
             </p>
           </div>
 
@@ -188,12 +232,12 @@ export default async function CourseDetailPage({ params }: CourseDetailPageProps
                 Grade Curricular
               </h2>
               <span className="text-xs text-slate-500">
-                {course.modules.length} módulos • {totalLessons} aulas
+                {modules.length} módulos • {totalLessons} aulas
               </span>
             </div>
 
             <div className="space-y-4 pt-2">
-              {course.modules.map((mod, index) => (
+              {modules.map((mod, index) => (
                 <div
                   key={mod.id}
                   className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden"
@@ -251,19 +295,19 @@ export default async function CourseDetailPage({ params }: CourseDetailPageProps
               Instrutor(a)
             </h2>
             <div className="flex items-start gap-4">
-              {course.instructor.avatarUrl && (
+              {c.instructor_avatar && (
                 <img
-                  src={course.instructor.avatarUrl}
-                  alt={course.instructor.name}
+                  src={c.instructor_avatar}
+                  alt={c.instructor_name}
                   className="w-14 h-14 rounded-2xl object-cover border border-slate-200 dark:border-slate-700 shrink-0"
                 />
               )}
               <div className="space-y-1">
                 <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                  {course.instructor.name}
+                  {c.instructor_name}
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  {course.instructor.bio || "Instrutor especialista na área de tecnologia e desenvolvimento de produtos digitais."}
+                  {c.instructor_bio || "Instrutor especialista na área de tecnologia e desenvolvimento de produtos digitais."}
                 </p>
               </div>
             </div>

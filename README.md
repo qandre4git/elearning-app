@@ -1,33 +1,8 @@
 # 🎓 EduFlow - Plataforma Moderna de E-Learning
 
-EduFlow é uma plataforma de ensino a distância (LMS) completa desenvolvida com **Next.js 15 (App Router)**, **TypeScript**, **Tailwind CSS v4** e **Prisma ORM**.
+EduFlow é uma plataforma de ensino a distância (LMS) completa desenvolvida com **Next.js 15 (App Router)**, **TypeScript**, **Tailwind CSS v4** e **PostgreSQL Nativo (`pg` / node-postgres)**.
 
----
-
-## 🚀 Funcionalidades Principais
-
-- 📚 **Catálogo de Cursos**: Busca textual, filtros por categorias (Programação, Design, IA) e níveis (Iniciante, Intermediário, Avançado).
-- 🎬 **Player de Aprendizado Imersivo**:
-  - Reprodutor de vídeo com layout moderno.
-  - Playlist lateral dinâmica com ordenação por módulos.
-  - Marcação de aulas concluídas com atualização em tempo real do progresso (`%`).
-  - Navegação fluida entre aulas anteriores e próximas.
-- 📝 **Módulo de Quizzes Interativos**:
-  - Avaliação ao final dos módulos com notas e porcentagem de acertos.
-  - Explicações didáticas para cada alternativa.
-  - Animação festiva de confetes (`canvas-confetti`) ao atingir a nota mínima.
-- 💬 **Fórum de Dúvidas por Aula**:
-  - Alunos podem enviar perguntas diretamente abaixo de cada aula.
-  - Respostas identificadas com badge oficial de instrutor.
-- 🏆 **Certificados Oficiais com Validação**:
-  - Geração automática ao atingir 100% de conclusão do curso.
-  - Código único de autenticidade (ex.: `CERT-ABC123-XYZ`).
-  - Layout pronto para impressão e salvamento em PDF (`window.print`).
-- 👨‍🏫 **Painel do Instrutor / Admin**:
-  - Métricas em tempo real: alunos matriculados, cursos ativos, receita estimada e quizzes realizados.
-  - Criação rápida de novos cursos e módulos via Server Actions.
-- 🔄 **Alternador de Perfil Instantâneo**:
-  - Alterne com 1 clique na barra de navegação entre a visão do aluno (**Lucas Silva**) e da instrutora (**Prof. Helena Carvalho**).
+Todos os cursos, módulos, avaliações didáticas e videoaulas são **100% em Português**.
 
 ---
 
@@ -38,69 +13,90 @@ EduFlow é uma plataforma de ensino a distância (LMS) completa desenvolvida com
 | **Framework Web** | [Next.js 15 (App Router)](https://nextjs.org) |
 | **Linguagem** | [TypeScript](https://www.typescriptlang.org) |
 | **Estilização** | [Tailwind CSS v4](https://tailwindcss.com) + [Lucide Icons](https://lucide.dev) |
-| **Banco de Dados & ORM** | [Prisma ORM](https://www.prisma.io) (SQLite local com suporte a PostgreSQL) |
+| **Banco de Dados** | **PostgreSQL 16** (Driver nativo `pg` com pool de conexões e SQL puro) |
+| **Infraestrutura** | Docker Compose em `database/postgres/` |
 | **Mutações & Estado** | Next.js Server Actions |
 
 ---
 
-## 💻 Como Rodar o Projeto Localmente
+## 📁 Estrutura de Diretórios do Projeto
 
-### 1. Clonar ou navegar até a pasta
+```
+elearning-app/
+├── database/
+│   └── postgres/              # Módulo completo de banco de dados
+│       ├── schema.sql         # DDL com todas as tabelas e constraints SQL
+│       ├── setup.ts           # Script de migração e criação das tabelas
+│       ├── seed.ts            # Carga com 5 cursos e aulas em português
+│       ├── docker-compose.yml # Definição do serviço PostgreSQL 16
+│       └── README.md          # Documentação de infraestrutura
+├── src/
+│   ├── app/
+│   │   ├── (public)/          # Catálogo de cursos, busca e landing page
+│   │   ├── courses/           # Detalhes da ementa e player de aulas
+│   │   ├── dashboard/         # Painel do aluno com progresso e horas de estudo
+│   │   ├── certificates/      # Emissão oficial e impressão de certificados
+│   │   └── instructor/        # Painel de gestão do instrutor e métricas
+│   ├── components/            # Componentes reutilizáveis (Player, Quiz, Cards)
+│   └── lib/
+│       ├── db.ts              # Pool singleton do PostgreSQL nativo (`pg`)
+│       ├── actions.ts         # Server Actions com queries SQL parametrizadas
+│       └── utils.ts           # Utilitários de formatação e estilos
+├── .env.example               # Modelo de variáveis de ambiente
+├── docker-compose.yml         # Atalho de orquestração na raiz
+└── package.json
+```
+
+---
+
+## 🚀 Como Executar o Projeto Localmente
+
+### 1. Entrar na pasta do projeto
 ```bash
 cd /home/andre/elearning-app
 ```
 
-### 2. Instalar dependências (caso necessário)
+### 2. Iniciar o Banco de Dados PostgreSQL
+Suba o container do PostgreSQL com o comando:
 ```bash
-npm install
+docker compose up -d
+# ou: npm run db:up
 ```
 
-### 3. Sincronizar o Banco e Popular Dados Iniciais (Seed)
-O banco de dados SQLite já vem configurado e populado. Para recriar do zero:
+### 3. Criar as Tabelas e Popular Dados Iniciais
+Execute a criação das tabelas SQL e o seed dos cursos em português:
 ```bash
-npm run db:push
+npm run db:setup
 npm run db:seed
 ```
 
-### 4. Iniciar o Servidor de Desenvolvimento
+### 4. Iniciar a Aplicação Next.js
 ```bash
 npm run dev
 ```
-Acesse [http://localhost:3000](http://localhost:3000) no seu navegador.
+Acesse a aplicação no navegador em: **[http://localhost:3000](http://localhost:3000)**
 
 ---
 
-## 🗄️ Estrutura de Rotas
+## 📜 Comandos Disponíveis no `package.json`
 
-| Rota | Descrição |
+| Comando | Descrição |
 | :--- | :--- |
-| `/` | Página inicial com hero, estatísticas e cursos em destaque |
-| `/courses` | Catálogo completo com busca e filtros por categorias |
-| `/courses/[slug]` | Página de apresentação do curso com grade curricular e botão de matrícula |
-| `/courses/[slug]/learn` | Ambiente de estudos com reprodutor de vídeo, playlist e fórum |
-| `/dashboard` | Painel do aluno com cursos em andamento, progresso e horas de estudo |
-| `/certificates` | Visualização e impressão de certificados de conclusão |
-| `/instructor` | Painel do instrutor com métricas e formulário de novo curso |
+| `npm run dev` | Inicia o servidor de desenvolvimento na porta `3000` |
+| `npm run build` | Compila a aplicação para produção |
+| `npm run db:up` | Sobe o container PostgreSQL em segundo plano |
+| `npm run db:down` | Encerra o container PostgreSQL |
+| `npm run db:setup` | Cria/atualiza as tabelas no PostgreSQL executando `schema.sql` |
+| `npm run db:seed` | Popula o banco com 5 cursos e videoaulas em português |
 
 ---
 
-## 🐘 Como Migrar para PostgreSQL
+## 🌐 Configuração da String de Conexão (.env)
 
-Por padrão, o projeto utiliza SQLite para execução instantânea sem necessidade de instalar ou rodar servidores de banco. Para usar PostgreSQL (Supabase, Neon, Docker ou RDS):
+Por padrão, a aplicação conecta ao PostgreSQL local configurado no Docker:
 
-1. No arquivo `prisma/schema.prisma`, altere o datasource:
-```prisma
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-```
-2. No seu arquivo `.env`, atualize a connection string:
 ```env
-DATABASE_URL="postgresql://usuario:senha@localhost:5432/elearning_db?schema=public"
+DATABASE_URL="postgresql://postgres:postgrespassword@localhost:5432/elearning_db?schema=public"
 ```
-3. Execute a sincronização e o seed:
-```bash
-npm run db:push
-npm run db:seed
-```
+
+Caso queira utilizar um banco PostgreSQL hospedado na nuvem (ex.: **Supabase**, **Neon** ou **Railway**), basta substituir a variável `DATABASE_URL` no seu arquivo `.env` pela URL fornecida pelo provedor.

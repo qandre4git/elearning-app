@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/actions";
 import { CourseCard } from "@/components/CourseCard";
-import { Search, Filter, BookOpen } from "lucide-react";
+import { Search, BookOpen } from "lucide-react";
 
 interface CoursesPageProps {
   searchParams: Promise<{
@@ -15,58 +15,91 @@ export default async function CoursesPage({ searchParams }: CoursesPageProps) {
   const { category, q } = await searchParams;
   const user = await getCurrentUser();
 
-  const whereClause: any = { published: true };
+  let sql = `
+    SELECT 
+      c.id, c.title, c.slug, c.description, c.short_description as "shortDescription",
+      c.thumbnail, CAST(c.price AS FLOAT) as price, c.level, c.created_at,
+      cat.name as category_name, cat.slug as category_slug,
+      u.name as instructor_name, u.avatar_url as instructor_avatar
+    FROM courses c
+    LEFT JOIN categories cat ON c.category_id = cat.id
+    JOIN users u ON c.instructor_id = u.id
+    WHERE c.published = true
+  `;
+  const params: any[] = [];
 
   if (category) {
-    whereClause.category = { slug: category };
+    params.push(category);
+    sql += ` AND cat.slug = $${params.length}`;
   }
 
   if (q) {
-    whereClause.OR = [
-      { title: { contains: q } },
-      { description: { contains: q } },
-    ];
+    params.push(`%${q}%`);
+    sql += ` AND (c.title ILIKE $${params.length} OR c.description ILIKE $${params.length})`;
   }
 
-  const [courses, categories, userEnrollments] = await Promise.all([
-    prisma.course.findMany({
-      where: whereClause,
-      include: {
-        category: true,
-        instructor: { select: { name: true, avatarUrl: true } },
-        modules: {
-          include: {
-            lessons: { select: { id: true, durationMinutes: true } },
-          },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.category.findMany(),
-    user
-      ? prisma.enrollment.findMany({
-          where: { userId: user.id },
-          include: {
-            course: {
-              include: {
-                modules: {
-                  include: { lessons: { select: { id: true } } },
-                },
-              },
-            },
-          },
-        })
-      : Promise.resolve([]),
+  sql += ` ORDER BY c.created_at DESC`;
+
+  const [coursesRes, categoriesRes] = await Promise.all([
+    pool.query(sql, params),
+    pool.query("SELECT id, name, slug FROM categories ORDER BY name ASC"),
   ]);
 
-  const userProgress = user
-    ? await prisma.lessonProgress.findMany({
-        where: { userId: user.id, completed: true },
-        select: { lessonId: true },
-      })
-    : [];
+  // Busca aulas de cada curso
+  const lessonsRes = await pool.query(`
+    SELECT m.course_id, l.id as lesson_id, l.duration_minutes
+    FROM lessons l
+    JOIN modules m ON l.module_id = m.id
+  `);
 
-  const completedLessonIds = new Set(userProgress.map((p) => p.lessonId));
+  const lessonsByCourse: Record<string, { id: string; durationMinutes: number }[]> = {};
+  lessonsRes.rows.forEach((row) => {
+    if (!lessonsByCourse[row.course_id]) {
+      lessonsByCourse[row.course_id] = [];
+    }
+    lessonsByCourse[row.course_id].push({
+      id: row.lesson_id,
+      durationMinutes: row.duration_minutes,
+    });
+  });
+
+  const courses = coursesRes.rows.map((c) => ({
+    id: c.id,
+    title: c.title,
+    slug: c.slug,
+    shortDescription: c.shortDescription,
+    thumbnail: c.thumbnail,
+    price: c.price,
+    level: c.level,
+    category: c.category_name ? { name: c.category_name, slug: c.category_slug } : null,
+    instructor: {
+      name: c.instructor_name,
+      avatarUrl: c.instructor_avatar,
+    },
+    modules: [
+      {
+        lessons: lessonsByCourse[c.id] || [],
+      },
+    ],
+  }));
+
+  // Busca matrículas do usuário
+  let userEnrollments: { course_id: string; completed_at: Date | null }[] = [];
+  let completedLessonIds = new Set<string>();
+
+  if (user) {
+    const enrRes = await pool.query(
+      "SELECT course_id, completed_at FROM enrollments WHERE user_id = $1",
+      [user.id]
+    );
+    userEnrollments = enrRes.rows;
+
+    const prgRes = await pool.query(
+      "SELECT lesson_id FROM lesson_progress WHERE user_id = $1 AND completed = true",
+      [user.id]
+    );
+    completedLessonIds = new Set(prgRes.rows.map((r) => r.lesson_id));
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
@@ -94,7 +127,7 @@ export default async function CoursesPage({ searchParams }: CoursesPageProps) {
           >
             Todos os Cursos
           </Link>
-          {categories.map((cat) => (
+          {categoriesRes.rows.map((cat) => (
             <Link
               key={cat.id}
               href={`/courses?category=${cat.slug}${q ? `&q=${q}` : ""}`}
@@ -143,7 +176,7 @@ export default async function CoursesPage({ searchParams }: CoursesPageProps) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {courses.map((course) => {
-            const enrollment = userEnrollments.find((e) => e.courseId === course.id);
+            const enrollment = userEnrollments.find((e) => e.course_id === course.id);
 
             let enrollmentInfo = null;
             if (enrollment) {
@@ -158,7 +191,7 @@ export default async function CoursesPage({ searchParams }: CoursesPageProps) {
                   : 0;
 
               enrollmentInfo = {
-                completedAt: enrollment.completedAt,
+                completedAt: enrollment.completed_at,
                 completedLessonsCount: completedCount,
                 totalLessonsCount,
                 progressPercentage,

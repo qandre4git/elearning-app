@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/actions";
 import { CourseCard } from "@/components/CourseCard";
 import {
@@ -23,41 +23,65 @@ export default async function DashboardPage() {
     );
   }
 
-  // Busca matrículas do aluno com cursos, módulos e aulas
-  const enrollments = await prisma.enrollment.findMany({
-    where: { userId: user.id },
-    include: {
-      course: {
-        include: {
-          category: true,
-          instructor: { select: { name: true, avatarUrl: true } },
-          modules: {
-            include: {
-              lessons: { select: { id: true, durationMinutes: true } },
-            },
-          },
-        },
-      },
-    },
-    orderBy: { enrolledAt: "desc" },
-  });
+  // Cursos matriculados pelo aluno
+  const enrollmentsRes = await pool.query(
+    `SELECT 
+       e.course_id, e.completed_at,
+       c.id, c.title, c.slug, c.description, c.short_description as "shortDescription",
+       c.thumbnail, CAST(c.price AS FLOAT) as price, c.level,
+       cat.name as category_name, cat.slug as category_slug,
+       u.name as instructor_name, u.avatar_url as instructor_avatar
+     FROM enrollments e
+     JOIN courses c ON e.course_id = c.id
+     LEFT JOIN categories cat ON c.category_id = cat.id
+     JOIN users u ON c.instructor_id = u.id
+     WHERE e.user_id = $1
+     ORDER BY e.enrolled_at DESC`,
+    [user.id]
+  );
 
-  const progressList = await prisma.lessonProgress.findMany({
-    where: { userId: user.id, completed: true },
-    include: {
-      lesson: { select: { id: true, durationMinutes: true } },
-    },
-  });
+  // Aulas concluídas e tempo estudado
+  const progressRes = await pool.query(
+    `SELECT lp.lesson_id, l.duration_minutes
+     FROM lesson_progress lp
+     JOIN lessons l ON lp.lesson_id = l.id
+     WHERE lp.user_id = $1 AND lp.completed = true`,
+    [user.id]
+  );
 
-  const certificatesCount = await prisma.certificate.count({
-    where: { userId: user.id },
-  });
-
-  const completedLessonIds = new Set(progressList.map((p) => p.lessonId));
-  const totalMinutesStudied = progressList.reduce(
-    (acc, p) => acc + p.lesson.durationMinutes,
+  const completedLessonIds = new Set(progressRes.rows.map((p) => p.lesson_id));
+  const totalMinutesStudied = progressRes.rows.reduce(
+    (acc, p) => acc + (p.duration_minutes || 0),
     0
   );
+
+  // Certificados
+  const certRes = await pool.query(
+    "SELECT COUNT(*) as count FROM certificates WHERE user_id = $1",
+    [user.id]
+  );
+  const certificatesCount = Number(certRes.rows[0]?.count || 0);
+
+  // Todas as aulas dos cursos matriculados
+  const lessonsRes = await pool.query(
+    `SELECT m.course_id, l.id as lesson_id, l.duration_minutes
+     FROM lessons l
+     JOIN modules m ON l.module_id = m.id
+     JOIN enrollments e ON m.course_id = e.course_id
+     WHERE e.user_id = $1`,
+    [user.id]
+  );
+
+  const lessonsByCourse: Record<string, { id: string; durationMinutes: number }[]> = {};
+  lessonsRes.rows.forEach((row) => {
+    if (!lessonsByCourse[row.course_id]) {
+      lessonsByCourse[row.course_id] = [];
+    }
+    lessonsByCourse[row.course_id].push({
+      id: row.lesson_id,
+      durationMinutes: row.duration_minutes,
+    });
+  });
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
@@ -66,7 +90,7 @@ export default async function DashboardPage() {
         <div className="space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-indigo-200 text-xs font-semibold backdrop-blur-md">
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Área do Estudante</span>
+            <span>Área do Estudante • PostgreSQL</span>
           </div>
           <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
             Olá, {user.name}! 👋
@@ -93,7 +117,7 @@ export default async function DashboardPage() {
           </div>
           <div>
             <div className="text-2xl font-extrabold text-slate-900 dark:text-white">
-              {enrollments.length}
+              {enrollmentsRes.rows.length}
             </div>
             <div className="text-xs text-slate-500 font-medium">Cursos Matriculados</div>
           </div>
@@ -105,7 +129,7 @@ export default async function DashboardPage() {
           </div>
           <div>
             <div className="text-2xl font-extrabold text-slate-900 dark:text-white">
-              {progressList.length}
+              {progressRes.rows.length}
             </div>
             <div className="text-xs text-slate-500 font-medium">Aulas Concluídas</div>
           </div>
@@ -143,11 +167,11 @@ export default async function DashboardPage() {
             Meus Cursos em Andamento
           </h2>
           <span className="text-xs text-slate-400">
-            {enrollments.length} {enrollments.length === 1 ? "curso" : "cursos"}
+            {enrollmentsRes.rows.length} {enrollmentsRes.rows.length === 1 ? "curso" : "cursos"}
           </span>
         </div>
 
-        {enrollments.length === 0 ? (
+        {enrollmentsRes.rows.length === 0 ? (
           <div className="text-center py-16 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4">
             <BookOpen className="w-12 h-12 text-slate-300 mx-auto" />
             <h3 className="font-bold text-lg text-slate-800 dark:text-slate-200">
@@ -166,28 +190,48 @@ export default async function DashboardPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {enrollments.map((enr) => {
-              const allLessons = enr.course.modules.flatMap((m) => m.lessons);
-              const completedCount = allLessons.filter((l) =>
+            {enrollmentsRes.rows.map((enr) => {
+              const courseLessons = lessonsByCourse[enr.id] || [];
+              const completedCount = courseLessons.filter((l) =>
                 completedLessonIds.has(l.id)
               ).length;
-              const totalLessonsCount = allLessons.length;
+              const totalLessonsCount = courseLessons.length;
               const progressPercentage =
                 totalLessonsCount > 0
                   ? Math.round((completedCount / totalLessonsCount) * 100)
                   : 0;
 
               const enrollmentInfo = {
-                completedAt: enr.completedAt,
+                completedAt: enr.completed_at,
                 completedLessonsCount: completedCount,
                 totalLessonsCount,
                 progressPercentage,
               };
 
+              const courseObj = {
+                id: enr.id,
+                title: enr.title,
+                slug: enr.slug,
+                shortDescription: enr.shortDescription,
+                thumbnail: enr.thumbnail,
+                price: enr.price,
+                level: enr.level,
+                category: enr.category_name ? { name: enr.category_name, slug: enr.category_slug } : null,
+                instructor: {
+                  name: enr.instructor_name,
+                  avatarUrl: enr.instructor_avatar,
+                },
+                modules: [
+                  {
+                    lessons: courseLessons,
+                  },
+                ],
+              };
+
               return (
                 <CourseCard
-                  key={enr.course.id}
-                  course={enr.course}
+                  key={enr.id}
+                  course={courseObj}
                   enrollment={enrollmentInfo}
                 />
               );

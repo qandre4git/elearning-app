@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/actions";
 import { CreateCourseForm } from "@/components/CreateCourseForm";
 import { formatPrice, formatLevel } from "@/lib/utils";
@@ -7,7 +7,6 @@ import {
   Users,
   BookOpen,
   DollarSign,
-  TrendingUp,
   ExternalLink,
   Award,
   Sparkles,
@@ -16,35 +15,37 @@ import {
 export default async function InstructorPage() {
   const user = await getCurrentUser();
 
-  // Busca cursos do instrutor atual ou de todos caso esteja avaliando
-  const [courses, categories, totalEnrollments, allAttempts] = await Promise.all([
-    prisma.course.findMany({
-      include: {
-        category: true,
-        enrollments: true,
-        modules: {
-          include: { lessons: true },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.category.findMany(),
-    prisma.enrollment.findMany({
-      include: { course: true },
-    }),
-    prisma.quizAttempt.count(),
+  const [coursesRes, categoriesRes, enrollmentsRes, attemptsRes] = await Promise.all([
+    pool.query(`
+      SELECT 
+        c.id, c.title, c.slug, CAST(c.price AS FLOAT) as price, c.level, c.thumbnail,
+        cat.name as category_name,
+        COUNT(DISTINCT e.id) as total_enrollments,
+        COUNT(DISTINCT l.id) as total_lessons
+      FROM courses c
+      LEFT JOIN categories cat ON c.category_id = cat.id
+      LEFT JOIN enrollments e ON c.id = e.course_id
+      LEFT JOIN modules m ON c.id = m.course_id
+      LEFT JOIN lessons l ON m.id = l.module_id
+      GROUP BY c.id, c.title, c.slug, c.price, c.level, c.thumbnail, cat.name
+      ORDER BY c.created_at DESC
+    `),
+    pool.query("SELECT id, name FROM categories ORDER BY name ASC"),
+    pool.query(`
+      SELECT CAST(c.price AS FLOAT) as price
+      FROM enrollments e
+      JOIN courses c ON e.course_id = c.id
+    `),
+    pool.query("SELECT COUNT(*) as count FROM quiz_attempts"),
   ]);
 
-  const totalRevenue = totalEnrollments.reduce(
-    (acc, enr) => acc + (enr.course.price || 0),
+  const totalRevenue = enrollmentsRes.rows.reduce(
+    (acc, row) => acc + (row.price || 0),
     0
   );
 
-  const totalLessonsCount = courses.reduce(
-    (acc, c) =>
-      acc + c.modules.reduce((mAcc, m) => mAcc + m.lessons.length, 0),
-    0
-  );
+  const totalEnrollmentsCount = enrollmentsRes.rows.length;
+  const totalAttemptsCount = Number(attemptsRes.rows[0]?.count || 0);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
@@ -53,7 +54,7 @@ export default async function InstructorPage() {
         <div>
           <div className="flex items-center gap-2 text-purple-600 font-bold text-xs uppercase tracking-wider">
             <Sparkles className="w-4 h-4" />
-            <span>Gestão e Ensino</span>
+            <span>Gestão e Ensino • PostgreSQL</span>
           </div>
           <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white mt-1">
             Painel do Instrutor
@@ -63,7 +64,7 @@ export default async function InstructorPage() {
           </p>
         </div>
 
-        <CreateCourseForm categories={categories} />
+        <CreateCourseForm categories={categoriesRes.rows} />
       </div>
 
       {/* Metrics Row */}
@@ -74,7 +75,7 @@ export default async function InstructorPage() {
           </div>
           <div>
             <div className="text-2xl font-extrabold text-slate-900 dark:text-white">
-              {totalEnrollments.length}
+              {totalEnrollmentsCount}
             </div>
             <div className="text-xs text-slate-500 font-medium">Alunos Matriculados</div>
           </div>
@@ -86,7 +87,7 @@ export default async function InstructorPage() {
           </div>
           <div>
             <div className="text-2xl font-extrabold text-slate-900 dark:text-white">
-              {courses.length}
+              {coursesRes.rows.length}
             </div>
             <div className="text-xs text-slate-500 font-medium">Cursos Ativos</div>
           </div>
@@ -110,7 +111,7 @@ export default async function InstructorPage() {
           </div>
           <div>
             <div className="text-2xl font-extrabold text-slate-900 dark:text-white">
-              {allAttempts}
+              {totalAttemptsCount}
             </div>
             <div className="text-xs text-slate-500 font-medium">Quizzes Realizados</div>
           </div>
@@ -124,7 +125,7 @@ export default async function InstructorPage() {
             Grade de Cursos Publicados
           </h2>
           <span className="text-xs text-slate-400">
-            {courses.length} cursos cadastrados
+            {coursesRes.rows.length} cursos cadastrados
           </span>
         </div>
 
@@ -142,75 +143,68 @@ export default async function InstructorPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {courses.map((course) => {
-                const totalLessons = course.modules.reduce(
-                  (acc, m) => acc + m.lessons.length,
-                  0
-                );
-
-                return (
-                  <tr
-                    key={course.id}
-                    className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors"
-                  >
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={
-                            course.thumbnail ||
-                            "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80"
-                          }
-                          alt={course.title}
-                          className="w-12 h-8 rounded-lg object-cover border border-slate-200 dark:border-slate-700"
-                        />
-                        <div>
-                          <span className="font-bold text-slate-900 dark:text-white text-sm block">
-                            {course.title}
-                          </span>
-                          <span className="text-[11px] text-slate-400">
-                            Nível {formatLevel(course.level)}
-                          </span>
-                        </div>
+              {coursesRes.rows.map((course) => (
+                <tr
+                  key={course.id}
+                  className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors"
+                >
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={
+                          course.thumbnail ||
+                          "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80"
+                        }
+                        alt={course.title}
+                        className="w-12 h-8 rounded-lg object-cover border border-slate-200 dark:border-slate-700"
+                      />
+                      <div>
+                        <span className="font-bold text-slate-900 dark:text-white text-sm block">
+                          {course.title}
+                        </span>
+                        <span className="text-[11px] text-slate-400">
+                          Nível {formatLevel(course.level)}
+                        </span>
                       </div>
-                    </td>
+                    </div>
+                  </td>
 
-                    <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
-                      {course.category?.name || "Geral"}
-                    </td>
+                  <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
+                    {course.category_name || "Geral"}
+                  </td>
 
-                    <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">
-                      {formatPrice(course.price)}
-                    </td>
+                  <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">
+                    {formatPrice(course.price)}
+                  </td>
 
-                    <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
-                      {totalLessons} aulas
-                    </td>
+                  <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
+                    {course.total_lessons} aulas
+                  </td>
 
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center gap-1 font-semibold text-indigo-600">
-                        <Users className="w-3.5 h-3.5" />
-                        {course.enrollments.length}
-                      </span>
-                    </td>
+                  <td className="px-6 py-4">
+                    <span className="inline-flex items-center gap-1 font-semibold text-indigo-600">
+                      <Users className="w-3.5 h-3.5" />
+                      {course.total_enrollments}
+                    </span>
+                  </td>
 
-                    <td className="px-6 py-4">
-                      <span className="inline-block px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
-                        Publicado
-                      </span>
-                    </td>
+                  <td className="px-6 py-4">
+                    <span className="inline-block px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+                      Publicado
+                    </span>
+                  </td>
 
-                    <td className="px-6 py-4 text-right">
-                      <Link
-                        href={`/courses/${course.slug}`}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold transition-colors"
-                      >
-                        <span>Acessar</span>
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
+                  <td className="px-6 py-4 text-right">
+                    <Link
+                      href={`/courses/${course.slug}`}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold transition-colors"
+                    >
+                      <span>Acessar</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </Link>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/actions";
 import { CourseCard } from "@/components/CourseCard";
 import {
@@ -8,7 +8,6 @@ import {
   BookOpen,
   Award,
   Users,
-  CheckCircle,
   Play,
   TrendingUp,
 } from "lucide-react";
@@ -16,53 +15,76 @@ import {
 export default async function HomePage() {
   const user = await getCurrentUser();
 
-  const [courses, categories, totalStudents, userEnrollments] = await Promise.all([
-    prisma.course.findMany({
-      where: { published: true },
-      include: {
-        category: true,
-        instructor: {
-          select: { name: true, avatarUrl: true },
-        },
-        modules: {
-          include: {
-            lessons: {
-              select: { id: true, durationMinutes: true },
-            },
-          },
-        },
+  // Busca cursos com categoria e instrutor
+  const coursesRes = await pool.query(`
+    SELECT 
+      c.id, c.title, c.slug, c.description, c.short_description as "shortDescription",
+      c.thumbnail, CAST(c.price AS FLOAT) as price, c.level, c.created_at,
+      cat.name as category_name, cat.slug as category_slug,
+      u.name as instructor_name, u.avatar_url as instructor_avatar
+    FROM courses c
+    LEFT JOIN categories cat ON c.category_id = cat.id
+    JOIN users u ON c.instructor_id = u.id
+    WHERE c.published = true
+    ORDER BY c.created_at DESC
+  `);
+
+  // Busca estatísticas de aulas por curso
+  const lessonsRes = await pool.query(`
+    SELECT m.course_id, l.id as lesson_id, l.duration_minutes
+    FROM lessons l
+    JOIN modules m ON l.module_id = m.id
+  `);
+
+  // Agrupa aulas por curso
+  const lessonsByCourse: Record<string, { id: string; durationMinutes: number }[]> = {};
+  lessonsRes.rows.forEach((row) => {
+    if (!lessonsByCourse[row.course_id]) {
+      lessonsByCourse[row.course_id] = [];
+    }
+    lessonsByCourse[row.course_id].push({
+      id: row.lesson_id,
+      durationMinutes: row.duration_minutes,
+    });
+  });
+
+  const courses = coursesRes.rows.map((c) => ({
+    id: c.id,
+    title: c.title,
+    slug: c.slug,
+    shortDescription: c.shortDescription,
+    thumbnail: c.thumbnail,
+    price: c.price,
+    level: c.level,
+    category: c.category_name ? { name: c.category_name, slug: c.category_slug } : null,
+    instructor: {
+      name: c.instructor_name,
+      avatarUrl: c.instructor_avatar,
+    },
+    modules: [
+      {
+        lessons: lessonsByCourse[c.id] || [],
       },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.category.findMany(),
-    prisma.enrollment.count(),
-    user
-      ? prisma.enrollment.findMany({
-          where: { userId: user.id },
-          include: {
-            course: {
-              include: {
-                modules: {
-                  include: {
-                    lessons: { select: { id: true } },
-                  },
-                },
-              },
-            },
-          },
-        })
-      : Promise.resolve([]),
-  ]);
+    ],
+  }));
 
-  // Busca o progresso das aulas do usuário atual
-  const userProgress = user
-    ? await prisma.lessonProgress.findMany({
-        where: { userId: user.id, completed: true },
-        select: { lessonId: true },
-      })
-    : [];
+  // Busca matrículas do usuário
+  let userEnrollments: { course_id: string; completed_at: Date | null }[] = [];
+  let completedLessonIds = new Set<string>();
 
-  const completedLessonIds = new Set(userProgress.map((p) => p.lessonId));
+  if (user) {
+    const enrRes = await pool.query(
+      "SELECT course_id, completed_at FROM enrollments WHERE user_id = $1",
+      [user.id]
+    );
+    userEnrollments = enrRes.rows;
+
+    const prgRes = await pool.query(
+      "SELECT lesson_id FROM lesson_progress WHERE user_id = $1 AND completed = true",
+      [user.id]
+    );
+    completedLessonIds = new Set(prgRes.rows.map((r) => r.lesson_id));
+  }
 
   return (
     <div className="space-y-16 pb-20">
@@ -112,7 +134,7 @@ export default async function HomePage() {
               <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
                 100%
               </div>
-              <div className="text-xs text-slate-500 font-medium mt-1">Prático & Direto</div>
+              <div className="text-xs text-slate-500 font-medium mt-1">Prático em Português</div>
             </div>
             <div>
               <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
@@ -122,15 +144,15 @@ export default async function HomePage() {
             </div>
             <div>
               <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
-                Instantâneo
+                PostgreSQL
               </div>
-              <div className="text-xs text-slate-500 font-medium mt-1">Certificado Verificado</div>
+              <div className="text-xs text-slate-500 font-medium mt-1">Banco Relacional Nativo</div>
             </div>
             <div>
               <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
-                24/7
+                Instantâneo
               </div>
-              <div className="text-xs text-slate-500 font-medium mt-1">Acesso Ilimitado</div>
+              <div className="text-xs text-slate-500 font-medium mt-1">Certificado Verificado</div>
             </div>
           </div>
         </div>
@@ -165,7 +187,7 @@ export default async function HomePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {courses.map((course) => {
             const enrollment = userEnrollments.find(
-              (e) => e.courseId === course.id
+              (e) => e.course_id === course.id
             );
 
             let enrollmentInfo = null;
@@ -181,7 +203,7 @@ export default async function HomePage() {
                   : 0;
 
               enrollmentInfo = {
-                completedAt: enrollment.completedAt,
+                completedAt: enrollment.completed_at,
                 completedLessonsCount: completedCount,
                 totalLessonsCount,
                 progressPercentage,
