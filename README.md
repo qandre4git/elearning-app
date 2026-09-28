@@ -6,133 +6,167 @@ Todos os cursos, módulos, avaliações didáticas e videoaulas são **100% em P
 
 ---
 
-## 🧒 Guia Passo a Passo: Clonando e Rodando na sua Máquina (Explicado para 5 anos!)
+## 📋 Pré-requisitos
 
-Se você nunca mexeu com programação ou com o GitHub antes, não se preocupe! Siga este passo a passo ilustrado:
+Antes de iniciar, certifique-se de ter instalado no seu computador:
 
-### 🧩 Entendendo o que estamos fazendo:
-- ☁️ **GitHub**: É como um **baú de brinquedos na nuvem** onde guardamos o código do projeto.
-- 🚚 **Git**: É o **carrinho de entrega** no seu computador. Ele vai até o baú da nuvem, pega uma cópia idêntica do projeto e entrega na sua máquina.
-- 👯 **Clonar**: Significa **fazer uma cópia exata** do projeto para a sua pasta.
-- 💻 **Terminal / Prompt**: É a **janelinha preta** onde você digita comandos para o computador obedecer.
+1. **Git** (sistema de controle de versão).
+2. **Node.js** (versão 18.17+, 20+ ou 22+) e **npm**: [nodejs.org](https://nodejs.org).
+3. **Docker** e **Docker Compose** (para executar o banco PostgreSQL localmente): [docker.com](https://www.docker.com).
 
 ---
 
-### Passo 1: Instalar o Git no seu computador
+## 🚀 Guia de Instalação e Execução Local
 
-Escolha o sistema operacional que você usa:
+Siga as etapas abaixo para clonar o repositório, configurar o ambiente e executar o projeto na sua máquina.
 
-#### 🪟 Se você usa Windows:
-1. Acesse o site oficial: [git-scm.com/download/win](https://git-scm.com/download/win).
-2. Baixe o instalador e vá clicando em **"Next" / "Avançar"** até terminar.
-3. No menu Iniciar, procure e abra o aplicativo chamado **Git Bash** (ou use o **PowerShell**).
+### Etapa 1: Instalar e Configurar o Git
 
-#### 🍎 Se você usa Mac (Apple):
-1. Pressione as teclas `Command (⌘) + Barra de Espaço`, digite **Terminal** e aperte `Enter`.
-2. Na janela preta que abrir, digite:
+Se você ainda não possui o Git configurado no seu sistema operacional:
+
+#### 🪟 No Windows:
+1. Baixe o instalador oficial em [git-scm.com/download/win](https://git-scm.com/download/win) (ou execute no terminal: `winget install Git.Git`).
+2. Siga as instruções do instalador mantendo as opções recomendadas.
+3. Abra o **Git Bash** ou o **PowerShell**.
+
+#### 🍎 No macOS:
+1. Abra o **Terminal** (`Command + Barra de Espaço` ➔ digite `Terminal`).
+2. Execute o comando abaixo para verificar se o Git já está presente ou instalar as ferramentas da Apple:
    ```bash
    git --version
    ```
-3. Se você ainda não tiver o Git instalado, o próprio Mac abrirá uma janelinha perguntando se deseja instalar as ferramentas de desenvolvedor. Clique em **Instalar** e aguarde.
+3. Se necessário, instale via Homebrew: `brew install git`.
 
-#### 🐧 Se você usa Linux (Ubuntu, Debian, Mint):
-1. Abra o seu terminal pressionando `Ctrl + Alt + T`.
-2. Digite o comando abaixo e aperte `Enter`:
+#### 🐧 No Linux (Ubuntu / Debian / Pop!_OS):
+1. Abra o terminal (`Ctrl + Alt + T`).
+2. Atualize os pacotes e instale o Git:
    ```bash
    sudo apt update && sudo apt install -y git
    ```
 
----
-
-### Passo 2: Dizer ao Git quem você é (Identidade)
-
-Abra a janela do terminal e digite os dois comandos abaixo (troque pelo seu nome e seu e-mail do GitHub):
+#### Configurar sua Identidade no Git (Global):
+Execute uma única vez no terminal para definir seu nome e e-mail de autor dos commits:
 
 ```bash
-git config --global user.name "Seu Nome"
-git config --global user.email "seu-email@exemplo.com"
+git config --global user.name "Seu Nome Completo"
+git config --global user.email "seu-email@dominio.com"
 ```
-> *Isso serve apenas para o Git saber quem é o autor das alterações.*
 
 ---
 
-### Passo 3: Fazer o Clone (Baixar o projeto do GitHub)
+### Etapa 2: Autenticação no GitHub
 
-1. No terminal, vá até a pasta onde você gosta de guardar seus projetos (por exemplo, na Área de Trabalho ou Documentos):
+Como este repositório é privado, o Git solicitará suas credenciais para autorizar o download. Escolha uma das opções:
+
+- **Opção A (Recomendada via GitHub CLI)**:
+  Instale o GitHub CLI (`gh`) e execute `gh auth login`. Selecione `GitHub.com`, protocolo `HTTPS` e autorize pelo navegador.
+- **Opção B (Via Personal Access Token - PAT)**:
+  1. No GitHub, vá em **Settings** ➔ **Developer Settings** ➔ **Personal access tokens** ➔ **Tokens (classic)**.
+  2. Gere um novo token marcando o escopo `repo`.
+  3. Quando o Git solicitar a senha no terminal, cole o token gerado.
+
+---
+
+### Etapa 3: Clonar o Repositório
+
+1. No terminal, navegue até o diretório onde deseja armazenar o projeto (por exemplo, na pasta de projetos ou documentos):
    ```bash
    cd ~/Documentos
-   # (ou no Windows: cd Desktop)
+   # (No Windows PowerShell: cd ~/Documents)
    ```
 
-2. Agora execute o comando de **clone**:
+2. Execute o comando para clonar o repositório:
    ```bash
    git clone https://github.com/qandre4git/elearning-app.git
    ```
 
-3. **Como este repositório é privado**, ele pode pedir para você se autenticar:
-   - **Forma mais fácil (GitHub CLI)**:
-     Instale o GitHub CLI e digite `gh auth login` para autorizar direto no navegador.
-   - **Via Senha/Token**:
-     Se o terminal pedir sua senha, no GitHub você deve usar um **Personal Access Token** no lugar da senha:
-     *(Acesse seu GitHub ➔ Settings ➔ Developer Settings ➔ Personal access tokens ➔ Tokens (classic) ➔ Generate new token com permissão `repo`)*.
+3. Entre no diretório do projeto recém-criado:
+   ```bash
+   cd elearning-app
+   ```
 
 ---
 
-### Passo 4: Entrar na pasta do projeto
+### Etapa 4: Instalar as Dependências
 
-Agora que o projeto foi baixado, digite o comando para entrar dentro da pasta dele:
-
-```bash
-cd elearning-app
-```
-> *(A sigla `cd` vem de "Change Directory", que significa "entrar nesta pasta")*.
-
----
-
-### Passo 5: Instalar as peças do projeto (Dependências)
-
-Certifique-se de ter o **[Node.js](https://nodejs.org)** instalado no computador. Em seguida, digite:
+Instale todos os pacotes Node.js necessários definidos no `package.json`:
 
 ```bash
 npm install
 ```
-> *(O computador vai baixar automaticamente todas as bibliotecas necessárias para a aplicação funcionar)*.
 
 ---
 
-### Passo 6: Ligar o Banco de Dados e Rodar o Site!
+### Etapa 5: Configurar Variáveis de Ambiente
 
-Agora que tudo está pronto, só precisamos ligar os motores:
+O projeto utiliza um arquivo `.env` para gerenciar a conexão com o banco de dados. Caso ele ainda não exista na raiz, copie o modelo de exemplo:
 
-1. **Ligar o PostgreSQL (banco de dados)**:
-   ```bash
-   docker compose up -d
-   ```
-2. **Criar as tabelas e colocar os cursos em português**:
+```bash
+cp .env.example .env
+```
+
+O conteúdo padrão para execução local é:
+```env
+DATABASE_URL="postgresql://postgres:postgrespassword@localhost:5432/elearning_db?schema=public"
+```
+
+---
+
+### Etapa 6: Subir o Banco de Dados PostgreSQL (Docker)
+
+Inicie o container do PostgreSQL em segundo plano:
+
+```bash
+docker compose up -d
+# ou utilize o atalho: npm run db:up
+```
+
+Para verificar se o container está ativo e rodando na porta 5432:
+```bash
+docker compose ps
+```
+
+---
+
+### Etapa 7: Criar Tabelas e Carregar Dados Iniciais (Seed)
+
+Com o banco de dados PostgreSQL rodando, execute os dois comandos abaixo:
+
+1. **Criar a estrutura de tabelas SQL** (executa o script DDL `database/postgres/schema.sql`):
    ```bash
    npm run db:setup
-   npm run db:seed
-   ```
-3. **Ligar a aplicação**:
-   ```bash
-   npm run dev
    ```
 
-🎉 **Pronto!** Abra o seu navegador de internet e acesse:
+2. **Popular o banco com 5 cursos e aulas em português**:
+   ```bash
+   npm run db:seed
+   ```
+
+---
+
+### Etapa 8: Iniciar o Servidor de Desenvolvimento
+
+Inicie o servidor Next.js:
+
+```bash
+npm run dev
+```
+
+Abra o seu navegador e acesse a aplicação em:
 👉 **[http://localhost:3000](http://localhost:3000)**
 
 ---
 
 ## 🛠️ Stack Tecnológica
 
-| Camada | Tecnologia |
-| :--- | :--- |
-| **Framework Web** | [Next.js 15 (App Router)](https://nextjs.org) |
-| **Linguagem** | [TypeScript](https://www.typescriptlang.org) |
-| **Estilização** | [Tailwind CSS v4](https://tailwindcss.com) + [Lucide Icons](https://lucide.dev) |
-| **Banco de Dados** | **PostgreSQL 16** (Driver nativo `pg` com pool de conexões e SQL puro) |
-| **Infraestrutura** | Docker Compose em `database/postgres/` |
-| **Mutações & Estado** | Next.js Server Actions |
+| Camada | Tecnologia | Descrição |
+| :--- | :--- | :--- |
+| **Framework Web** | [Next.js 15 (App Router)](https://nextjs.org) | Renderização híbrida (Server & Client Components) |
+| **Linguagem** | [TypeScript](https://www.typescriptlang.org) | Tipagem estática fim a fim |
+| **Estilização** | [Tailwind CSS v4](https://tailwindcss.com) + [Lucide Icons](https://lucide.dev) | Interface moderna e responsiva |
+| **Banco de Dados** | **PostgreSQL 16** | Banco relacional robusto com driver nativo `pg` (node-postgres) |
+| **Infraestrutura** | Docker Compose | Orquestração do container do banco em `database/postgres/` |
+| **Comunicação de Dados** | Next.js Server Actions | Mutações e operações de dados executadas no servidor |
 
 ---
 
@@ -141,26 +175,26 @@ Agora que tudo está pronto, só precisamos ligar os motores:
 ```
 elearning-app/
 ├── database/
-│   └── postgres/              # Módulo completo de banco de dados
-│       ├── schema.sql         # DDL com todas as tabelas e constraints SQL
-│       ├── setup.ts           # Script de migração e criação das tabelas
-│       ├── seed.ts            # Carga com 5 cursos e aulas em português
+│   └── postgres/              # Infraestrutura e scripts do PostgreSQL
+│       ├── schema.sql         # DDL com CREATE TABLE, constraints e chaves
+│       ├── setup.ts           # Script de execução da migração DDL
+│       ├── seed.ts            # Carga com cursos, módulos e aulas em português
 │       ├── docker-compose.yml # Definição do serviço PostgreSQL 16
-│       └── README.md          # Documentação de infraestrutura
+│       └── README.md          # Documentação técnica do banco
 ├── src/
 │   ├── app/
-│   │   ├── (public)/          # Catálogo de cursos, busca e landing page
-│   │   ├── courses/           # Detalhes da ementa e player de aulas
-│   │   ├── dashboard/         # Painel do aluno com progresso e horas de estudo
-│   │   ├── certificates/      # Emissão oficial e impressão de certificados
-│   │   └── instructor/        # Painel de gestão do instrutor e métricas
+│   │   ├── (public)/          # Landing page e catálogo de cursos
+│   │   ├── courses/           # Apresentação do curso e player de aulas (/learn)
+│   │   ├── dashboard/         # Painel do estudante com progresso e horas
+│   │   ├── certificates/      # Emissão e impressão de certificados oficiais
+│   │   └── instructor/        # Painel com métricas de alunos e faturamento
 │   ├── components/            # Componentes reutilizáveis (Player, Quiz, Cards)
 │   └── lib/
 │       ├── db.ts              # Pool singleton do PostgreSQL nativo (`pg`)
-│       ├── actions.ts         # Server Actions com queries SQL parametrizadas
-│       └── utils.ts           # Utilitários de formatação e estilos
+│       ├── actions.ts         # Server Actions com consultas SQL parametrizadas
+│       └── utils.ts           # Utilitários de formatação de moeda e datas
 ├── .env.example               # Modelo de variáveis de ambiente
-├── docker-compose.yml         # Atalho de orquestração na raiz
+├── docker-compose.yml         # Atalho de orquestração do PostgreSQL na raiz
 └── package.json
 ```
 
@@ -170,21 +204,27 @@ elearning-app/
 
 | Comando | Descrição |
 | :--- | :--- |
-| `npm run dev` | Inicia o servidor de desenvolvimento na porta `3000` |
-| `npm run build` | Compila a aplicação para produção |
-| `npm run db:up` | Sobe o container PostgreSQL em segundo plano |
-| `npm run db:down` | Encerra o container PostgreSQL |
-| `npm run db:setup` | Cria/atualiza as tabelas no PostgreSQL executando `schema.sql` |
-| `npm run db:seed` | Popula o banco com 5 cursos e videoaulas em português |
+| `npm run dev` | Inicia o servidor de desenvolvimento em `localhost:3000` |
+| `npm run build` | Compila o projeto com otimizações para produção |
+| `npm run start` | Inicia o servidor com o build compilado de produção |
+| `npm run lint` | Executa o linter ESLint para validação de código |
+| `npm run db:up` | Sobe o container PostgreSQL local em segundo plano |
+| `npm run db:down` | Encerra o container PostgreSQL local |
+| `npm run db:setup` | Executa o script `schema.sql` criando todas as tabelas |
+| `npm run db:seed` | Popula o banco com os cursos e avaliações em português |
 
 ---
 
-## 🌐 Configuração da String de Conexão (.env)
+## 🔄 Fluxo de Atualização (Git)
 
-Por padrão, a aplicação conecta ao PostgreSQL local configurado no Docker:
+Para manter sua máquina atualizada com o repositório remoto ou enviar novas alterações:
 
-```env
-DATABASE_URL="postgresql://postgres:postgrespassword@localhost:5432/elearning_db?schema=public"
+```bash
+# Baixar alterações mais recentes do repositório:
+git pull origin main
+
+# Salvar e enviar suas alterações locais:
+git add .
+git commit -m "feat: sua mensagem descritiva"
+git push origin main
 ```
-
-Caso queira utilizar um banco PostgreSQL hospedado na nuvem (ex.: **Supabase**, **Neon** ou **Railway**), basta substituir a variável `DATABASE_URL` no seu arquivo `.env` pela URL fornecida pelo provedor.
