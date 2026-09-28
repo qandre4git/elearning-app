@@ -18,7 +18,7 @@ Este diretório contém os arquivos de infraestrutura e orquestração do banco 
 
 ## 🚀 Comandos Rápidos
 
-A partir da raiz do projeto (`/home/andre/elearning-app-postgres`), você pode utilizar os atalhos do `package.json`:
+A partir da raiz do projeto (`cd elearning-app`), você pode utilizar os atalhos do `package.json`:
 
 ```bash
 # Iniciar o container PostgreSQL
@@ -27,14 +27,11 @@ npm run db:up
 # Parar o container PostgreSQL
 npm run db:down
 
-# Sincronizar o schema do Prisma com o PostgreSQL
-npm run db:push
+# Criar/atualizar as tabelas executando schema.sql
+npm run db:setup
 
 # Popular o banco com dados de teste em português
 npm run db:seed
-
-# Abrir o visualizador gráfico do Prisma (Prisma Studio)
-npm run db:studio
 ```
 
 ---

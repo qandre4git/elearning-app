@@ -51,9 +51,10 @@ elearning-app/
 
 ## 🚀 Como Executar o Projeto Localmente
 
-### 1. Entrar na pasta do projeto
+### 1. Clonar e entrar na pasta do projeto
 ```bash
-cd /home/andre/elearning-app
+git clone https://github.com/qandre4git/elearning-app.git
+cd elearning-app
 ```
 
 ### 2. Iniciar o Banco de Dados PostgreSQL
